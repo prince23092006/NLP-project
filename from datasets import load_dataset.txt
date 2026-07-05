@@ -1,0 +1,336 @@
+from datasets import load_dataset
+
+dataset = load_dataset("CShorten/ML-ArXiv-Papers")
+from datasets import load_dataset: We are importing the load_dataset function from the Hugging Face datasets library (the one you just installed). This library is the absolute industry standard right now for downloading and processing NLP data efficiently.
+"CShorten/ML-ArXiv-Papers": This string acts as an address. It tells the function exactly where to look on the Hugging Face Hub (which is like GitHub, but for AI models and datasets). "CShorten" is the user who uploaded it, and "ML-ArXiv-Papers" is the dataset containing titles, abstracts, and metadata of machine learning papers.
+Why you used this method? -> Hugging Face datasets library uses Apache Arrow under the hood. This means it uses memory-mapping—allowing you to load huge datasets that are larger than your computer's RAM without crashing your system. It's highly optimized.
+
+The Output
+Once this code finishes running, the dataset variable will hold a Hugging Face DatasetDict object. Think of it like a highly optimized dictionary or a supercharged pandas DataFrame.
+
+It will contain the raw text data (specifically the abstracts and titles of the research papers). This is the exact raw material we need to start cleaning and feeding into our sentence transformers to create vector embeddings in our next steps.
+
+import pandas as pd
+df = dataset["train"].to_pandas()
+df.columns
+Index(['Unnamed: 0.1', 'Unnamed: 0', 'title', 'abstract'], dtype='str')
+df
+Unnamed: 0.1	Unnamed: 0	title	abstract
+0	0	0.0	Learning from compressed observations	The problem of statistical learning is to co...
+1	1	1.0	Sensor Networks with Random Links: Topology De...	In a sensor network, in practice, the commun...
+2	2	2.0	The on-line shortest path problem under partia...	The on-line shortest path problem is conside...
+3	3	3.0	A neural network approach to ordinal regression	Ordinal regression is an important type of l...
+4	4	4.0	Parametric Learning and Monte Carlo Optimization	This paper uncovers and explores the close r...
+...	...	...	...	...
+117587	4995	NaN	Detecting COVID-19 Conspiracy Theories with Tr...	The sharing of fake news and conspiracy theori...
+117588	4996	NaN	Fair Feature Subset Selection using Multiobjec...	The feature subset selection problem aims at s...
+117589	4997	NaN	A Simple Duality Proof for Wasserstein Distrib...	We present a short and elementary proof of the...
+117590	4998	NaN	Combined Learning of Neural Network Weights fo...	We introduce CoLN, Combined Learning of Neural...
+117591	4999	NaN	Adapting and Evaluating Influence-Estimation M...	Influence estimation analyzes how changes to t...
+117592 rows × 4 columns
+
+df = df[['title', 'abstract']]
+df=df.head(50000)
+df.isnull().sum()
+title       0
+abstract    0
+dtype: int64
+Those Unnamed columns are just leftover artifacts—usually from when the original dataset creator saved their file as a CSV without ignoring the index. They are basically just old row numbers that got imported as actual data.
+
+You are dropping them and keeping only the title and abstract for two main reasons:
+
+Semantic Irrelevance (Removing Noise): Since you are building an NLP pipeline to create vector embeddings, your sentence transformer only cares about the actual meaning of words. Row numbers (0, 1, 2, 3...) have absolutely zero semantic value. If you leave them in and accidentally feed them to your model later, it just adds useless noise to your embeddings.
+Memory Optimization: You are working with a massive dataset of over 117,000 rows. Storing redundant integer columns wastes your computer's RAM. Slicing the DataFrame down to just the essential text makes it lighter and speeds up the preprocessing you are about to do.
+By running df = df[['title', 'abstract']], you are cleanly filtering out the garbage and keeping exactly what you need for Step 3 of your whiteboard plan: the raw text.
+
+To merge the title and abstract into a single, context-rich text block so sentence transformer can generate one comprehensive embedding per research paper.
+
+df["paper_text"] = df["title"] + " " + df["abstract"]
+df
+title	abstract	paper_text
+0	Learning from compressed observations	The problem of statistical learning is to co...	Learning from compressed observations   The pr...
+1	Sensor Networks with Random Links: Topology De...	In a sensor network, in practice, the commun...	Sensor Networks with Random Links: Topology De...
+2	The on-line shortest path problem under partia...	The on-line shortest path problem is conside...	The on-line shortest path problem under partia...
+3	A neural network approach to ordinal regression	Ordinal regression is an important type of l...	A neural network approach to ordinal regressio...
+4	Parametric Learning and Monte Carlo Optimization	This paper uncovers and explores the close r...	Parametric Learning and Monte Carlo Optimizati...
+...	...	...	...
+49995	See, Attend and Brake: An Attention-based Sali...	Visual perception is the most critical input...	See, Attend and Brake: An Attention-based Sali...
+49996	SNIFF: Reverse Engineering of Neural Networks ...	Neural networks have been shown to be vulner...	SNIFF: Reverse Engineering of Neural Networks ...
+49997	Beyond Dropout: Feature Map Distortion to Regu...	Deep neural networks often consist of a grea...	Beyond Dropout: Feature Map Distortion to Regu...
+49998	A study of resting-state EEG biomarkers for de...	Background: Depression has become a major he...	A study of resting-state EEG biomarkers for de...
+49999	Performance Analysis of Combine Harvester usin...	Novel applications of artificial intelligenc...	Performance Analysis of Combine Harvester usin...
+50000 rows × 3 columns
+
+What the code is doing: It takes the string from the title column, adds a single space (" "), and appends the string from the abstract column. It saves this combined text into a brand new column called paper_text.
+
+Why we do this : Sentence transformers convert text into mathematical vectors (embeddings) based on context.
+
+If you create an embedding just for the title, it might lack depth.
+
+If you create an embedding just for the abstract, it might miss the core, punchy keywords the author put in the title.
+
+If you embed them separately, your vector database has to do twice the work during a semantic search.
+
+By concatenating them, you are feeding the model the absolute best, most complete summary of the paper in one single pass. The space is added so the last word of the title doesn't accidentally merge with the first word of the abstract to create a fake word.
+
+The Output
+Your DataFrame will now have a third column named paper_text. This is the final, cleaned "golden" text column that you will actually pass into your sentence transformer in the next step to create the embeddings.
+
+df['paper_text'].head()
+0    Learning from compressed observations   The pr...
+1    Sensor Networks with Random Links: Topology De...
+2    The on-line shortest path problem under partia...
+3    A neural network approach to ordinal regressio...
+4    Parametric Learning and Monte Carlo Optimizati...
+Name: paper_text, dtype: str
+The Objective
+To extract and preview your newly created paper_text column as a cleanly formatted, 2D table rather than a raw, 1D list of text.
+
+df[["paper_text"]].head()
+paper_text
+0	Learning from compressed observations   The pr...
+1	Sensor Networks with Random Links: Topology De...
+2	The on-line shortest path problem under partia...
+3	A neural network approach to ordinal regressio...
+4	Parametric Learning and Monte Carlo Optimizati...
+The Breakdown & Explanation
+In pandas, how you use brackets completely changes the data structure you get back:
+
+Single Brackets (df["paper_text"]): This returns a pandas Series. Think of a Series as a 1D array or a single raw column of data. It doesn't have the nice visual table formatting in Jupyter; it just prints out as a plain text list.
+Double Brackets (df[["paper_text"]]): The inner brackets create a list of column names (even if it's just one name), and the outer brackets tell pandas to extract that list. This returns a pandas DataFrame. Even though it only contains one column, pandas still treats it as a 2D mathematical table.
+Summary: "Single brackets extract a 1D Series, while double brackets extract a 2D DataFrame. I used double brackets here purely for better visualization in the notebook before passing the text to the sentence transformer."
+
+The Output
+Because you used double brackets and .head(), the output will be a nicely formatted table (with HTML borders in your notebook) displaying exactly the first 5 rows of your combined titles and abstracts. This is your final sanity check to ensure the text looks clean before creating the embeddings.
+
+print(df['paper_text'].iloc[0])
+Learning from compressed observations   The problem of statistical learning is to construct a predictor of a random
+variable $Y$ as a function of a related random variable $X$ on the basis of an
+i.i.d. training sample from the joint distribution of $(X,Y)$. Allowable
+predictors are drawn from some specified class, and the goal is to approach
+asymptotically the performance (expected loss) of the best predictor in the
+class. We consider the setting in which one has perfect observation of the
+$X$-part of the sample, while the $Y$-part has to be communicated at some
+finite bit rate. The encoding of the $Y$-values is allowed to depend on the
+$X$-values. Under suitable regularity conditions on the admissible predictors,
+the underlying family of probability distributions and the loss function, we
+give an information-theoretic characterization of achievable predictor
+performance in terms of conditional distortion-rate functions. The ideas are
+illustrated on the example of nonparametric regression in Gaussian noise.
+
+The Objective
+To load the specific neural network model that will actually perform the core task of your project: converting your cleaned text into mathematical vector embeddings.
+
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]
+The Breakdown & Explanation
+from sentence_transformers import SentenceTransformer: You are importing the main class from the sentence-transformers library. This library acts as a wrapper around the standard Hugging Face transformers, specifically optimized to generate embeddings for entire sentences or paragraphs at once (rather than word-by-word).
+"sentence-transformers/all-MiniLM-L6-v2": This is the exact pre-trained model you are downloading and loading into memory.
+Interview Context: If an interviewer asks, "Why did you choose all-MiniLM-L6-v2 instead of a bigger model like BERT or GPT?", this is your golden answer:
+Efficiency: It is specifically designed to be fast and lightweight ("Mini") while retaining high accuracy. It's perfect for processing 117,000+ rows without requiring a massive, expensive GPU.
+Dimensionality: It maps text to a 384-dimensional dense vector space. This is a very standard, highly optimized size for storing in vector databases (like Milvus, Pinecone, or ChromaDB) and performing fast semantic similarity searches later.
+The Output
+When you run this cell, it will likely show a progress bar as it downloads the model weights from the internet (if it's the first time running it).
+
+Once finished, the model variable holds the active AI model in your computer's memory. It doesn't print much out right away, but it is now primed and ready for you to use model.encode() on your paper_text column in the next step to actually generate the vectors.
+
+print(type(model))
+<class 'sentence_transformers.sentence_transformer.model.SentenceTransformer'>
+The Objective
+To isolate a single test string from your dataset. You are doing this to run a quick, small-scale test on your sentence transformer before committing the time and compute power to encode all 15000 rows.
+
+sample_text = df["paper_text"].iloc[0]
+sample_text
+'Learning from compressed observations   The problem of statistical learning is to construct a predictor of a random\nvariable $Y$ as a function of a related random variable $X$ on the basis of an\ni.i.d. training sample from the joint distribution of $(X,Y)$. Allowable\npredictors are drawn from some specified class, and the goal is to approach\nasymptotically the performance (expected loss) of the best predictor in the\nclass. We consider the setting in which one has perfect observation of the\n$X$-part of the sample, while the $Y$-part has to be communicated at some\nfinite bit rate. The encoding of the $Y$-values is allowed to depend on the\n$X$-values. Under suitable regularity conditions on the admissible predictors,\nthe underlying family of probability distributions and the loss function, we\ngive an information-theoretic characterization of achievable predictor\nperformance in terms of conditional distortion-rate functions. The ideas are\nillustrated on the example of nonparametric regression in Gaussian noise.\n'
+The Breakdown & Explanation
+df["paper_text"]: You are targeting that "golden" combined text column you created a few steps ago.
+.iloc[0]: This stands for "integer location." In pandas, this is the standard, most efficient way to grab data by its exact mathematical row number. [0] targets the very first row.
+Summary: "Before processing a massive batch of data through a neural network, it is an industry best practice to isolate a single sample (like index 0) and pass it through the pipeline to verify the logic and output shape. It saves hours of potential debugging."
+The Output
+Once you run this, the variable sample_text will hold a plain Python string containing the title and abstract of the very first research paper in your DataFrame. It is now perfectly prepped to be fed directly into your loaded model in the next cell.
+
+The Objective
+To remove structural formatting garbage (specifically newline characters) from your text so the transformer reads it as one smooth, continuous paragraph rather than broken, fragmented lines.
+
+df["paper_text"] = df["paper_text"].str.replace("\n", " ", regex=False)
+df["paper_text"] = df["paper_text"].str.strip()
+The Breakdown & Explanation
+.str.replace("\n", " "): You are telling pandas to look inside every single row of your text column, find the exact invisible character \n (which represents a line break or "Enter" key press), and replace it with a standard blank space.
+Line 2 (.str.strip()): This removes any completely useless "leading" or "trailing" whitespace.
+regex=False: This is a performance optimizer. By setting this to False, you are telling pandas, "Don't treat this as a complex Regular Expression search, just look for the literal characters \n." Since you have 117,000+ rows, this makes the execution significantly faster.
+Interview Context: If they ask why this step was necessary if transformers are so smart, you can explain: "While transformers understand linguistics perfectly, text extracted from academic PDFs often contains arbitrary line breaks depending on column width. If a sentence breaks as 'machine \n learning', it might be tokenized weirdly. Replacing \n with a space ensures structural continuity for the attention mechanisms."
+The Output
+Your paper_text column is now silently updated. If any paper previously had weird formatting like: "The problem of statistical learning is to \n co..." It is now cleanly flattened into: "The problem of statistical learning is to co..."
+
+Why it matters: If replacing a \n accidentally leaves two spaces at the very end of your paper's text, or if the original PDF scraping left a weird space at the very beginning of the title, .strip() acts like a pair of scissors and cleanly cuts off the empty space at the absolute front and absolute back of the string. It ensures your sentence transformer gets a perfectly crisp block of text.
+
+sample_text = df["paper_text"].iloc[0]
+sample_text
+'Learning from compressed observations   The problem of statistical learning is to construct a predictor of a random variable $Y$ as a function of a related random variable $X$ on the basis of an i.i.d. training sample from the joint distribution of $(X,Y)$. Allowable predictors are drawn from some specified class, and the goal is to approach asymptotically the performance (expected loss) of the best predictor in the class. We consider the setting in which one has perfect observation of the $X$-part of the sample, while the $Y$-part has to be communicated at some finite bit rate. The encoding of the $Y$-values is allowed to depend on the $X$-values. Under suitable regularity conditions on the admissible predictors, the underlying family of probability distributions and the loss function, we give an information-theoretic characterization of achievable predictor performance in terms of conditional distortion-rate functions. The ideas are illustrated on the example of nonparametric regression in Gaussian noise.'
+The Objective
+To execute the core NLP task: passing your test text through the neural network to generate a mathematical vector, and then verifying its structure to ensure it is ready for a vector database.
+
+embedding = model.encode(sample_text)
+print(type(embedding))
+print(embedding.shape)
+<class 'numpy.ndarray'>
+(384,)
+The Breakdown & Explanation
+model.encode(sample_text): This is the actual magic moment of your pipeline. The all-MiniLM-L6-v2 model reads your combined title and abstract, processes its semantic meaning, and translates that meaning into an array of numbers.
+
+print(type(embedding)): This checks the data type. It returns <class 'numpy.ndarray'>.
+
+Interview Context: Why does this matter? Because standard Python lists are too slow for heavy math. NumPy arrays are highly optimized in C, and almost all vector databases (like ChromaDB, Pinecone, or Milvus) and similarity algorithms (like Cosine Similarity) strictly require NumPy arrays to run semantic searches efficiently.
+
+print(embedding.shape): This checks the dimensions of the array. It returns (384,).
+
+Interview Context: If they ask, "How do you know the model worked correctly?" you point to this. You specifically loaded a model designed to output a 384-dimensional vector. Because the shape is exactly (384,), it confirms the model successfully compressed the text's meaning into exactly 384 floating-point numbers.
+
+The Output
+The output confirms two critical things: you have a highly optimized NumPy array, and it has the exact mathematical shape (384 dimensions) required for your downstream semantic search.
+
+Your single-sample test was a complete success. You are now cleared to run .encode() on the entire dataset!
+
+embedding[:56]
+array([-0.13156407, -0.00678268, -0.00367611,  0.03265155,  0.11219642,
+        0.01227268,  0.09816721, -0.09005226,  0.0423116 , -0.01977348,
+       -0.03308415,  0.07452946,  0.10632039, -0.02060432, -0.020521  ,
+        0.00169492,  0.07081953,  0.05854454, -0.11231905,  0.02082477,
+        0.05692547,  0.02015781,  0.02583109,  0.03217028,  0.10513762,
+       -0.09676762,  0.02700801, -0.02345093, -0.04549678, -0.010137  ,
+       -0.01794856, -0.04814427,  0.01077651, -0.03759068,  0.01943482,
+        0.03715186,  0.02967846,  0.04330938,  0.04373212,  0.03704865,
+       -0.00182595,  0.00455185, -0.00799064,  0.03037369, -0.01437797,
+        0.03795145,  0.05959158, -0.02583358, -0.06521577,  0.05900269,
+       -0.02107134,  0.07359419, -0.05720105,  0.0029406 ,  0.00767514,
+       -0.03334163], dtype=float32)
+sample_embedding = model.encode(
+    df["paper_text"].head(5).to_list()
+)
+
+print(sample_embedding.shape)
+(5, 384)
+Bro, think back to our last conversation about what that 384 actually represents.
+
+If the output shape was just (5,), it would mean the AI compressed each of your 5 research papers into a single number. You can't perform Cosine Similarity on a single number—you need an actual vector (a coordinate in multi-dimensional space) to measure an angle!
+
+Here is exactly what happened: You fed the model a list of 5 separate research papers (.head(5)). The model processed them as a batch, doing the exact same thing it did to your single test sample:
+
+Paper 1 ➔ Converted into 384 features
+Paper 2 ➔ Converted into 384 features
+Paper 3 ➔ Converted into 384 features
+Paper 4 ➔ Converted into 384 features
+Paper 5 ➔ Converted into 384 features
+NumPy automatically stacks these together into a 2D matrix. So, (5, 384) simply means your array has 5 rows (your papers) and 384 columns (the mathematical embedding for each paper).
+
+This is the exact shape you need for your next step. When you run your Cosine Similarity function, it will take the 384 numbers from one row, compare them mathematically to the 384 numbers of another row, and calculate the angle between them to see how semantically similar those two papers are.
+
+The Objective
+To load the mathematical function that will calculate how closely related your research papers are by measuring the angles between their 384-dimensional embeddings.
+
+import sklearn
+from sklearn.metrics.pairwise import cosine_similarity
+The Breakdown & Explanation
+sklearn.metrics.pairwise: You are diving into scikit-learn (the standard Python library for classical machine learning). The pairwise module contains tools to calculate the distances or similarities between arrays of data.
+cosine_similarity: This specific function measures the cosine of the angle between two vectors.
+Interview Context: This is a guaranteed interview question. If an interviewer asks, "Why use Cosine Similarity instead of standard Euclidean distance (straight-line distance) for text embeddings?", here is your answer:
+"Euclidean distance measures magnitude (how long a document is), but Cosine Similarity measures orientation (the actual semantic direction). If Paper A is a short summary about neural networks and Paper B is a 50-page thesis on neural networks, their vectors will point in the exact same direction, giving them a high cosine similarity score (near 1.0). Euclidean distance would falsely flag them as different simply because Paper B has more words and a longer vector magnitude."
+
+The Output
+Running this cell won't print anything yet. It simply loads the function into your active memory so you can use it in the next step to compare that (5, 384) matrix against itself (or against a user's search query).
+
+To help you absolutely nail the explanation of this concept in an interview, I've generated an interactive visualization below. Try dragging the two vectors around to see exactly how the angle dictates the similarity score.
+
+similarity = cosine_similarity([sample_embedding[0]], [sample_embedding[0]])
+print(similarity)
+[[1.0000001]]
+The Fix
+You need to pass the embeddings as 2D arrays (matrices), not 1D arrays (flat lists). The easiest way to fix this is to wrap your slices in an extra set of square brackets.
+
+(Alternatively, you could also write it using NumPy's reshape method: sample_embedding[0].reshape(1, -1), but the extra brackets do the exact same thing and are easier to read!)
+
+What went wrong (The ValueError)
+This is a very common scikit-learn error.
+
+Think back to the shape of your sample_embedding. It was (5, 384)—a 2D matrix. When you sliced it using sample_embedding[0], you extracted just the very first row. NumPy automatically flattened that row into a 1D array of shape (384,).
+
+The cosine_similarity function is designed to compare batches of data. It strictly expects a 2D array as its input (meaning it wants a "list of papers", even if that list only contains one paper). Because you handed it a 1D array, it threw a ValueError saying it expected 2D data but got 1D. By wrapping it in brackets [sample_embedding[0]], you temporarily turn it back into a 2D array of shape (1, 384).
+
+What this code is actually doing
+The Math: You are telling the computer to measure the angle between the vector of Paper 1 and the vector of... Paper 1.
+The Expected Output: Because you are comparing a paper to its exact self, the two vectors point in the exact same mathematical direction. The angle between them is 0 degrees.
+The Result: The cosine of 0 is 1. When you run the fixed code, it will print out [[1.]] (or [[1.00000000e+00]]), which translates to a 100% semantic match.
+This was a great test step. Now that you know the similarity function works, the next logical step is to compare [sample_embedding[0]] against [sample_embedding[1]] to see how mathematically similar Paper 1 and Paper 2 are!
+
+similarity = cosine_similarity(sample_embedding[0].reshape(1, -1), sample_embedding[1].reshape(1, -1))
+print(similarity)
+[[0.36625272]]
+The Breakdown & Explanation
+1. The .reshape(1, -1) trick: In the last step, you got an error because cosine_similarity strictly requires 2D arrays (matrices), but sample_embedding[0] is a flat 1D array. While wrapping it in brackets [sample_embedding[0]] worked, using .reshape(1, -1) is the official, industry-standard NumPy way to fix this.
+
+The 1 tells NumPy: "Make this exactly 1 row."
+The -1 tells NumPy: "Calculate the number of columns automatically based on the data." (It automatically figures out there are 384 columns).
+2. What does 0.36625266 mean? You just mathematically compared Paper 1 against Paper 2! Cosine similarity returns a score between -1.0 and 1.0.
+
+1.0 = Exact same meaning (like when you compared Paper 1 to itself).
+0.0 = Completely unrelated (perpendicular vectors).
+-1.0 = Exact opposite meaning.
+A score of ~0.36 means these two research papers have a moderate-to-low similarity. Because they are both Machine Learning papers from ArXiv, they likely share some common academic vocabulary (like "data", "algorithm", "results"), which keeps the score above zero, but their actual core research topics are distinctly different.
+
+# 1. Run the import again to fix the NameError
+from sklearn.metrics.pairwise import cosine_similarity
+
+# 2. Run your loop
+for i in range(1, 5):
+    sim = cosine_similarity(sample_embedding[0].reshape(1, -1), sample_embedding[i].reshape(1, -1))
+    print(f"Similarity with Paper {i}: {sim[0][0]}")
+Similarity with Paper 1: 0.36625272035598755
+Similarity with Paper 2: 0.33522844314575195
+Similarity with Paper 3: 0.1550510972738266
+Similarity with Paper 4: 0.37421542406082153
+The Objective
+To unleash the neural network on your entire dataset. Instead of testing just 1 or 5 papers, this step converts all of your cleaned research papers into 384-dimensional mathematical vectors so they can be stored and searched.
+
+embedding = model.encode(df["paper_text"].to_list(), batch_size=32, show_progress_bar=True)
+Batches:   0%|          | 0/1563 [00:00<?, ?it/s]
+The Explanation
+df["paper_text"].to_list(): The sentence-transformers neural network is not designed to read pandas DataFrame columns directly. It expects a standard Python list, text or images . .to_list()` quickly rips all the text out of your dataframe and packages it into a massive Python list of strings.
+batch_size=32: This tells the model to grab 32 papers, process them, save the vectors, and then grab the next 32.
+show_progress_bar=True: Because processing thousands of papers takes heavy math, it takes time. This turns on a visual loading bar so you know your code hasn't frozen.
+The Output
+While it runs, you see the progress bar: 1/469 [00:03<26:19, 3.37s/it]
+
+1/469: The model has divided your dataset into 469 batches (chunks of 32 papers).
+<26:19: It estimates it will take about 26 minutes to finish all the math.
+When it reaches 100%: The embedding variable will hold a gigantic 2D NumPy matrix containing the vector for every single paper. If you ran this on 15,000 papers, the shape will be exactly (15000, 384).
+Why we did it (Interview Context)
+If an interviewer asks, "Why did you explicitly set a batch_size instead of just passing the whole list?" Your Answer: "To prevent Out-Of-Memory (OOM) errors. You cannot feed 15,000+ massive text documents into a neural network simultaneously; the computer's RAM (or GPU VRAM) will instantly overload and crash the program. By setting batch_size=32, I engineered the pipeline to process the data in manageable chunks. It is a standard industry practice to balance processing speed with memory safety."
+
+import numpy as np
+import os
+index_path = "../data/arxiv_embeddings.npy"
+
+if os.path.exists(index_path):
+    print("Loading saved embeddings")
+    embeddings = np.load(index_path)
+else:
+    print("Generating embeddings")
+    embeddings = model.encode(
+        df["paper_text"].tolist(),
+        batch_size=32,
+        show_progress_bar=True
+    )
+    np.save(index_path, embeddings)
+    print("Embeddings saved successfully!")
+# This saves your 26-minute calculation instantly to a file in your folder
+np.save(index_path, embedding)
+
+print("Embeddings successfully saved to disk!")
+Embeddings successfully saved to disk!
+# Save the cleaned dataframe so we can map the math back to actual paper titles
+df.to_csv("../data/cleaned_arxiv_papers.csv", index=False)
+print("Cleaned DataFrame saved successfully!")
+Cleaned DataFrame saved successfully!
